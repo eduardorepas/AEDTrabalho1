@@ -9,8 +9,8 @@
 /**
  * STUDENT NAME: Eduardo Rêpas
  * STUDENT NUMBER: 132828
- * STUDENT NAME:
- * STUDENT NUMBER:
+ * STUDENT NAME: Leandro Torralvo
+ * STUDENT NUMBER: 131908
  */
 
 #include "vector_scene.h"
