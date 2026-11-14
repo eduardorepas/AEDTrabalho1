@@ -260,7 +260,7 @@ if (p == NULL) {
     p->geom.polygon.vertices = NULL;
   }
 
-  free(p);
+  free(p); //FUNCTION COMPLETED
 }
 
 // ============================================================================
@@ -268,19 +268,37 @@ if (p == NULL) {
 // ============================================================================
 
 bool polygon_add_vertex(Primitive* p, Point pt) {
-  /* TODO: Student Implementation
-   */
-  (void)p;
-  (void)pt;
-  return false;
+  if (p==NULL||p->type!=PRIM_POLYGON){
+    return false;
+  }
+  PolygonGeom* polygon = &p->geom.polygon;
+  if (polygon->num_vertices >= polygon->capacity) {
+    size_t new_capacity = (polygon->capacity == 0) ? 4 : polygon->capacity * 2;
+    Point* new_vertices = (Point*)realloc(polygon->vertices, new_capacity * sizeof(Point));
+    if (new_vertices == NULL) {
+      return false; // Memory allocation failed
+    }
+    polygon->vertices = new_vertices;
+    polygon->capacity = new_capacity;
+  }
+  polygon->vertices[polygon->num_vertices] = pt;
+  polygon->num_vertices++;
+  p->is_aabb_dirty = true; // Mark AABB as dirty since the polygon has changed
+  return true; //FUNCTION COMPLETED
 }
 
 bool polygon_remove_vertex(Primitive* p, size_t index) {
-  /* TODO: Student Implementation
-   */
-  (void)p;
-  (void)index;
-  return false;
+  if (p == NULL || p->type != PRIM_POLYGON || index >= p->geom.polygon.num_vertices) {
+    return false;
+  }
+  PolygonGeom* polygon = &p->geom.polygon;
+  for (size_t i = index; i < polygon->num_vertices - 1; i++) {
+    polygon->vertices[i] = polygon->vertices[i + 1];
+  }
+  polygon->num_vertices--;
+  p->is_aabb_dirty = true; // Mark AABB as dirty since the polygon has changed
+
+  return true; //FUNCTION COMPLETED
 }
 
 // ============================================================================
@@ -301,6 +319,7 @@ void primitive_update_aabb(Primitive* p) {
       break;
 
     case PRIM_RECTANGLE:
+      
       /* TODO: Compute AABB for Rectangle
        */
       break;
