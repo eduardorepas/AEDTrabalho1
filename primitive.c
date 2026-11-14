@@ -319,25 +319,46 @@ void primitive_update_aabb(Primitive* p) {
       break;
 
     case PRIM_RECTANGLE:
-      
-      /* TODO: Compute AABB for Rectangle
-       */
+      p->aabb.min.x = p->geom.rectangle.top_left.x;
+      p->aabb.min.y = p->geom.rectangle.top_left.y;
+      p->aabb.max.x = p->geom.rectangle.top_left.x + p->geom.rectangle.width;
+      p->aabb.max.y = p->geom.rectangle.top_left.y + p->geom.rectangle.height;
       break;
 
     case PRIM_SEGMENT:
-      /* TODO: Compute AABB for Segment
-       */
+      p->aabb.min.x = fmin(p->geom.segment.p1.x, p->geom.segment.p2.x);
+      p->aabb.min.y = fmin(p->geom.segment.p1.y, p->geom.segment.p2.y);
+      p->aabb.max.x = fmax(p->geom.segment.p1.x, p->geom.segment.p2.x);
+      p->aabb.max.y = fmax(p->geom.segment.p1.y, p->geom.segment.p2.y);
       break;
 
-    case PRIM_POLYGON:
-      /* TODO: Compute AABB for Polygon
-       * Iterate vertices array to find min/max coordinates
-       */
+    case PRIM_POLYGON: {
+      PolygonGeom* poly = &p->geom.polygon;
+      if (poly->num_vertices == 0 || poly->vertices == NULL) {
+        p->aabb.min = (Point){0.0, 0.0};
+        p->aabb.max = (Point){0.0, 0.0};
+      } else {
+        double min_x = poly->vertices[0].x;
+        double min_y = poly->vertices[0].y;
+        double max_x = poly->vertices[0].x;
+        double max_y = poly->vertices[0].y;
+
+        for (size_t i = 1; i < poly->num_vertices; i++) {
+          if (poly->vertices[i].x < min_x) min_x = poly->vertices[i].x;
+          if (poly->vertices[i].y < min_y) min_y = poly->vertices[i].y;
+          if (poly->vertices[i].x > max_x) max_x = poly->vertices[i].x;
+          if (poly->vertices[i].y > max_y) max_y = poly->vertices[i].y;
+        }
+
+        p->aabb.min = (Point){min_x, min_y};
+        p->aabb.max = (Point){max_x, max_y};
+      }
       break;
+    }
   }
 
   p->is_aabb_dirty = false;
-}
+} //FUNCTION COMPLETED
 
 void primitive_translate(Primitive* p, double dx, double dy) {
   if (p == NULL) {
