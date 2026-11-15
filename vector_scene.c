@@ -323,19 +323,43 @@ static void insertion_sort_by_z(Primitive** arr, size_t count,
  */
 static void merge_by_z(Primitive** arr, Primitive** temp_arr, size_t left,
                        size_t mid, size_t right, SortStats* stats) {
-  // TODO: Implement Merge step for MergeSort
-  // - Merge sorted halves [left..mid] and [mid+1..right] into temp_arr.
-  // - Compare z_index of primitives and increment stats->comparisons.
-  // - Increment stats->swaps when copying elements to temp_arr and back to arr.
-  // - Copy merged elements back from temp_arr to arr[left..right].
+  size_t i = left;      // Index for the left subarray
+  size_t j = mid + 1;   // Index for the right subarray
+  size_t k = left;      // Index for the merged array
 
-  (void)arr;
-  (void)temp_arr;
-  (void)left;
-  (void)mid;
-  (void)right;
-  (void)stats;
-}
+  while (i <= mid && j <= right) {
+    if (stats != NULL) {
+      stats->comparisons++;
+    }
+    if (arr[i]->z_index <= arr[j]->z_index) {
+      temp_arr[k++] = arr[i++];
+    } else {
+      temp_arr[k++] = arr[j++]; 
+    }
+    if (stats != NULL) {
+        stats->swaps++;
+      }
+  }
+  while (i <= mid) {
+    temp_arr[k++] = arr[i++];
+    if (stats != NULL) {
+        stats->swaps++;
+      }
+  }
+  while (j <= right) {
+    temp_arr[k++] = arr[j++];
+    if (stats != NULL) {
+        stats->swaps++;
+      }
+  }
+  for (size_t idx = left; idx <= right; idx++) {
+    arr[idx] = temp_arr[idx];
+    if (stats != NULL) {
+        stats->swaps++;
+      }
+  }
+
+}//FUNCTION COMPLETED
 
 /**
  * @brief Sorts a subarray of primitives by z_index using O(N log N) MergeSort.
@@ -357,33 +381,61 @@ static void merge_sort_by_z(Primitive** arr, Primitive** temp_arr, size_t left,
   // - Recursively call merge_sort_by_z for [left..mid] and [mid+1..right].
   // - Call merge_by_z to merge the two sorted halves.
 
-  (void)arr;
-  (void)temp_arr;
-  (void)left;
-  (void)right;
-  (void)stats;
-}
+  if (left >= right) {
+    return;
+  }
+
+  size_t mid = left + (right - left) / 2;
+  merge_sort_by_z(arr, temp_arr, left, mid, stats);
+  merge_sort_by_z(arr, temp_arr, mid + 1, right, stats);
+  merge_by_z(arr, temp_arr, left, mid, right, stats);
+
+} //FUNCTION COMPLETEDs
 
 void vector_scene_sort_by_z(VectorScene* scene, bool use_fast_sort,
                             SortStats* stats) {
+  
+  if (stats != NULL) {
+    stats->comparisons = 0;
+    stats->swaps = 0;
+  }
+
   if (scene == NULL || scene->count < 2) return;
 
+  if (!use_fast_sort) {
+    insertion_sort_by_z(scene->primitives, scene->count, stats);
+  } else {
+    Primitive** temp_arr = (Primitive**)malloc(scene->count * sizeof(Primitive*));
+    if (temp_arr == NULL) {
+      return; // Memory allocation failed
+    }
+    merge_sort_by_z(scene->primitives, temp_arr, 0, scene->count - 1, stats);
+    free(temp_arr);
+  }
   /* TODO: Student Implementation & Benchmark Study
    * Reset stats (comparisons = 0, swaps = 0).
    * If use_fast_sort is false: execute O(N^2) sort (Insertion Sort).
    * If use_fast_sort is true: execute O(N log N) sort (MergeSort).
    * Increment stats->comparisons and stats->swaps on every check/swap!
    */
-
-  (void)use_fast_sort;
-  (void)stats;
-}
+} //FUNCTION COMPLETED
 
 Primitive* vector_scene_pick_top_primitive(const VectorScene* scene, Point pt,
                                            bool is_opt, PickStats* stats) {
-  if (!scene) {
-    return NULL;
-  }
+    if (stats != NULL) {
+      stats->aabb_tests = 0;
+      stats->exact_tests = 0;
+    }
+
+    if (!scene || scene->count == 0) {
+      return NULL;
+    }
+
+    Primitive** sorted = malloc(scene->count * sizeof(Primitive*));
+    if (sorted == NULL) {
+      return NULL; // Memory allocation failed
+    }
+    
 
   /* TODO: Student Implementation & Benchmark Study
    * Reset stats (aabb_tests = 0, exact_tests = 0).
