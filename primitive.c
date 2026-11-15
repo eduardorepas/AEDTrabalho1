@@ -364,33 +364,71 @@ void primitive_translate(Primitive* p, double dx, double dy) {
   if (p == NULL) {
     return;
   }
-
-  /* TODO: Student Implementation
-   * Translate geometry based on p->type:
-   * - PRIM_CIRCLE: translate the center
-   * - PRIM_RECTANGLE: translate top-left vertex
-   * - PRIM_SEGMENT: translate both endpoints
-   * - PRIM_POLYGON: translate each vertex
-   * Set p->is_aabb_dirty = true
-   */
-  (void)dx;
-  (void)dy;
-}
+  switch(p->type) {
+    case PRIM_CIRCLE:
+      p->geom.circle.center.x += dx;
+      p->geom.circle.center.y += dy;
+      break;
+    case PRIM_RECTANGLE:
+      p->geom.rectangle.top_left.x += dx;
+      p->geom.rectangle.top_left.y += dy;
+      break;
+    case PRIM_SEGMENT:
+      p->geom.segment.p1.x += dx;
+      p->geom.segment.p1.y += dy;
+      p->geom.segment.p2.x += dx;
+      p->geom.segment.p2.y += dy;
+      break;
+    case PRIM_POLYGON:
+      for (size_t i = 0; i < p->geom.polygon.num_vertices; i++) {
+        p->geom.polygon.vertices[i].x += dx;
+        p->geom.polygon.vertices[i].y += dy;
+      }
+      break;
+  }
+  p->is_aabb_dirty = true;
+} //FUNCTION COMPLETED
 
 void primitive_scale(Primitive* p, double factor) {
   if (p == NULL || factor <= 0.0) {
     return;
   }
+  switch (p->type){
+    case PRIM_CIRCLE:
+      p->geom.circle.radius *= factor;
+      break;
+    case PRIM_RECTANGLE:
+      p->geom.rectangle.width *= factor;
+      p->geom.rectangle.height *= factor;
+      break;
+    case PRIM_SEGMENT: {
+      double mid_x = (p->geom.segment.p1.x + p->geom.segment.p2.x) / 2.0;
+      double mid_y = (p->geom.segment.p1.y + p->geom.segment.p2.y) / 2.0;
+      p->geom.segment.p1.x = mid_x + (p->geom.segment.p1.x - mid_x) * factor;
+      p->geom.segment.p1.y = mid_y + (p->geom.segment.p1.y - mid_y) * factor;
+      p->geom.segment.p2.x = mid_x + (p->geom.segment.p2.x - mid_x) * factor;
+      p->geom.segment.p2.y = mid_y + (p->geom.segment.p2.y - mid_y) * factor;
+      break;
+    }
+    case PRIM_POLYGON: {
+      if (p->geom.polygon.num_vertices > 0) {
+        if (p->is_aabb_dirty) {
+          primitive_update_aabb(p);
+        }
+        double center_x = (p->aabb.min.x + p->aabb.max.x) / 2.0;
+        double center_y = (p->aabb.min.y + p->aabb.max.y) / 2.0;
 
-  /* TODO: Student Implementation
-   * Scale geometry based on p->type:
-   * - PRIM_CIRCLE: radius *= factor
-   * - PRIM_RECTANGLE: width *= factor, height *= factor
-   * - PRIM_SEGMENT: scale endpoints relative to midpoint
-   * - PRIM_POLYGON: scale vertices relative to polygon bounding box center
-   * Set p->is_aabb_dirty = true
-   */
-  (void)factor;
+        for (size_t i = 0; i < p->geom.polygon.num_vertices; i++) {
+          p->geom.polygon.vertices[i].x =
+              center_x + (p->geom.polygon.vertices[i].x - center_x) * factor;
+          p->geom.polygon.vertices[i].y =
+              center_y + (p->geom.polygon.vertices[i].y - center_y) * factor;
+        }
+      }
+      break;
+    }
+  }
+  p->is_aabb_dirty = true;
 }
 
 bool primitive_contains_point(const Primitive* p, Point pt) {
@@ -405,19 +443,17 @@ bool primitive_contains_point(const Primitive* p, Point pt) {
                                         p->geom.circle.radius, pt);
 
     case PRIM_RECTANGLE:
-      /* TODO: Does rectangle contain point?
-       */
-      return false;
+      return math_rect_contains_point(p->geom.rectangle.top_left,
+                                       p->geom.rectangle.width,
+                                       p->geom.rectangle.height, pt);
 
     case PRIM_SEGMENT:
-      /* TODO: Does segment contain point?
-       */
-      return false;
+      return math_segment_contains_point(p->geom.segment.p1, p->geom.segment.p2,
+                                          1e-6, pt);
 
     case PRIM_POLYGON:
-      /* TODO: Does polygon contain point?
-       */
-      return false;
+      return math_polygon_contains_point(p->geom.polygon.vertices,
+                                          p->geom.polygon.num_vertices, pt);
   }
 
   return false;
