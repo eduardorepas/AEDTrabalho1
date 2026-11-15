@@ -429,7 +429,7 @@ void primitive_scale(Primitive* p, double factor) {
     }
   }
   p->is_aabb_dirty = true;
-}
+} //FUNCTION COMPLETED
 
 bool primitive_contains_point(const Primitive* p, Point pt) {
   if (p == NULL) {
@@ -457,4 +457,4 @@ bool primitive_contains_point(const Primitive* p, Point pt) {
   }
 
   return false;
-}
+} //FUNCTION COMPLETED

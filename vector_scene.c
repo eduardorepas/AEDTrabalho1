@@ -131,11 +131,6 @@ VectorScene* vector_scene_create(int width, int height, Color bg_color) {
   if (width <= 0 || height <= 0) {
     return NULL;
   }
-
-  /* TODO: Student Implementation
-   * 1. Allocate the VectorScene data structure.
-   * 2. Set capacity = INITIAL_SCENE_CAPACITY.
-   */
   VectorScene* vs = (VectorScene*)malloc(sizeof(VectorScene));
   if (vs == NULL){
     return NULL;
@@ -153,24 +148,19 @@ VectorScene* vector_scene_create(int width, int height, Color bg_color) {
   }
   vs->primitives=p;
   return vs;
-}
+}//FUNCTION COMPLETED
 
 void vector_scene_destroy(VectorScene* scene) {
   if (!scene) {
     return;
   }
-
-  /* TODO: Student Implementation
-   * 1. Destroy each scene primitive.
-   * 2. Free all allocated memory.
-   */
   for (size_t i=0; i<scene->count; i++){
     primitive_destroy(scene->primitives[i]);
   }
   free(scene->primitives);
   free(scene);
+} //FUNCTION COMPLETED  
 
-}
 
 // ============================================================================
 // COLLECTION MANAGEMENT (STUDENTS MUST COMPLETE)
@@ -210,7 +200,7 @@ int vector_scene_add_primitive(VectorScene* scene, Primitive* p) {
   scene->count++;
   primitive_update_aabb(p);
   return p->id;
-}
+}//FUNCTION COMPLETED
 
 bool vector_scene_remove_primitive(VectorScene* scene, int id) {
   if (!scene || id < 0) {
@@ -235,7 +225,7 @@ bool vector_scene_remove_primitive(VectorScene* scene, int id) {
     return true;
   }
   return false;
-}
+}//FUNCTION COMPLETED
 
 // ============================================================================
 // MANIPULATION AND TRANSFORMATIONS (STUDENTS MUST COMPLETE)
@@ -271,7 +261,7 @@ bool vector_scene_set_z_index(VectorScene* scene, int id, int new_z_index) {
       return true;
     }
   }
-  return false;
+  return false;//FUNCTION COMPLETED
 }
 
 // ============================================================================
@@ -314,7 +304,7 @@ static void insertion_sort_by_z(Primitive** arr, size_t count,
       j--;
     }
     arr[j] = key;
-  }
+  } //FUNCTION COMPLETED
 }
 
 /**
