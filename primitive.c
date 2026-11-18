@@ -202,31 +202,41 @@ Primitive* primitive_create_rectangle(int id, Point top_left, double width,
                                       double height, Color color, double alpha,
                                       int z_index) 
 {
-  
+  // Valida as dimensoes do retangulo e o intervalo permitido para alpha.
   if (width <= 0.0 || height <= 0.0 || alpha < 0.0 || alpha > 1.0) {
     return NULL;
   }
+
+  // Aloca a estrutura base e inicializa a geometria especifica.
   Primitive* p= primitive_allocate_common(id, PRIM_RECTANGLE, color, alpha, z_index);
   if (p==NULL) {
     return NULL;
   }
+
   p->geom.rectangle.top_left=top_left;
   p->geom.rectangle.width=width;
   p->geom.rectangle.height=height;
-  
+
+  // Calcula imediatamente a caixa envolvente inicial.
   primitive_update_aabb(p);
   return p; //FUNCTION COMPLETED
 }
 
+/**
+ * Cria um segmento depois de validar a opacidade.
+ * A AABB e calculada a partir dos menores e maiores valores dos dois extremos.
+ */
 Primitive* primitive_create_segment(int id, Point p1, Point p2, Color color,
                                     double alpha, int z_index) {
   if (alpha < 0.0 || alpha > 1.0) {
     return NULL;
   }
+
   Primitive* p = primitive_allocate_common(id, PRIM_SEGMENT, color, alpha, z_index);
   if (p == NULL) {
     return NULL;
   }
+
   p->geom.segment.p1 = p1;
   p->geom.segment.p2 = p2;
 
@@ -234,27 +244,39 @@ Primitive* primitive_create_segment(int id, Point p1, Point p2, Color color,
   return p;
 }
 
+/**
+ * Cria um poligono vazio.
+ * O vetor de vertices e alocado apenas quando o primeiro vertice for inserido.
+ */
 Primitive* primitive_create_polygon(int id, Color color, double alpha,
                                     int z_index) {
-
   if (alpha < 0.0 || alpha > 1.0) {
     return NULL;
   }
+
   Primitive* p = primitive_allocate_common(id, PRIM_POLYGON, color, alpha, z_index);
   if (p == NULL) {
     return NULL;
   }
+
   p->geom.polygon.num_vertices = 0;
   p->geom.polygon.vertices = NULL;
+
+  // Uma lista vazia tem uma AABB inicial degenerada na origem.
   primitive_update_aabb(p); //FUNCTION COMPLETED
   return p;
 }
 
+/**
+ * Destroi uma primitiva e liberta a memoria que lhe pertence.
+ * Poligonos requerem uma libertacao adicional para o vetor de vertices.
+ */
 void primitive_destroy(Primitive* p) {
-if (p == NULL) {
+  if (p == NULL) {
     return;
   }
 
+  // Apenas os poligonos possuem memoria dinamica adicional.
   if (p->type == PRIM_POLYGON) {
     free(p->geom.polygon.vertices);
     p->geom.polygon.vertices = NULL;
@@ -267,12 +289,18 @@ if (p == NULL) {
 // DYNAMIC ARRAY MANIPULATION (POLYGON) (STUDENTS MUST COMPLETE)
 // ============================================================================
 
+/**
+ * Adiciona um vertice ao vetor dinamico de um poligono.
+ * Quando o vetor fica cheio, a capacidade e duplicada antes da insercao.
+ */
 bool polygon_add_vertex(Primitive* p, Point pt) {
   if (p==NULL||p->type!=PRIM_POLYGON){
     return false;
   }
+
   PolygonGeom* polygon = &p->geom.polygon;
   if (polygon->num_vertices >= polygon->capacity) {
+    // Duplica a capacidade para manter insercoes eficientes.
     size_t new_capacity = (polygon->capacity == 0) ? 4 : polygon->capacity * 2;
     Point* new_vertices = (Point*)realloc(polygon->vertices, new_capacity * sizeof(Point));
     if (new_vertices == NULL) {
@@ -281,21 +309,30 @@ bool polygon_add_vertex(Primitive* p, Point pt) {
     polygon->vertices = new_vertices;
     polygon->capacity = new_capacity;
   }
+
   polygon->vertices[polygon->num_vertices] = pt;
   polygon->num_vertices++;
+  // A AABB sera recalculada quando for consultada.
   p->is_aabb_dirty = true; // Mark AABB as dirty since the polygon has changed
   return true; //FUNCTION COMPLETED
 }
 
+/**
+ * Remove o vertice indicado e compacta o vetor deslocando os seguintes.
+ * A AABB e marcada como desatualizada porque os limites podem ter mudado.
+ */
 bool polygon_remove_vertex(Primitive* p, size_t index) {
   if (p == NULL || p->type != PRIM_POLYGON || index >= p->geom.polygon.num_vertices) {
     return false;
   }
+
   PolygonGeom* polygon = &p->geom.polygon;
   for (size_t i = index; i < polygon->num_vertices - 1; i++) {
     polygon->vertices[i] = polygon->vertices[i + 1];
   }
+
   polygon->num_vertices--;
+  // A remocao pode alterar os limites da primitiva.
   p->is_aabb_dirty = true; // Mark AABB as dirty since the polygon has changed
 
   return true; //FUNCTION COMPLETED
@@ -305,6 +342,10 @@ bool polygon_remove_vertex(Primitive* p, size_t index) {
 // GEOMETRIC OPERATIONS AND TRANSFORMATIONS (STUDENTS MUST COMPLETE)
 // ============================================================================
 
+/**
+ * Recalcula a caixa envolvente axis-aligned da primitiva.
+ * O calculo so e feito quando a flag is_aabb_dirty indica dados alterados.
+ */
 void primitive_update_aabb(Primitive* p) {
   if (p == NULL || !p->is_aabb_dirty) {
     return;
@@ -335,9 +376,11 @@ void primitive_update_aabb(Primitive* p) {
     case PRIM_POLYGON: {
       PolygonGeom* poly = &p->geom.polygon;
       if (poly->num_vertices == 0 || poly->vertices == NULL) {
+        // Um poligono sem vertices nao possui extensao geometrica.
         p->aabb.min = (Point){0.0, 0.0};
         p->aabb.max = (Point){0.0, 0.0};
       } else {
+        // Inicia os limites com o primeiro vertice e percorre os restantes.
         double min_x = poly->vertices[0].x;
         double min_y = poly->vertices[0].y;
         double max_x = poly->vertices[0].x;
@@ -360,6 +403,10 @@ void primitive_update_aabb(Primitive* p) {
   p->is_aabb_dirty = false;
 } //FUNCTION COMPLETED
 
+/**
+ * Aplica uma translacao a todos os pontos relevantes da geometria.
+ * Depois da operacao, a AABB e invalidada para ser recalculada sob demanda.
+ */
 void primitive_translate(Primitive* p, double dx, double dy) {
   if (p == NULL) {
     return;
@@ -386,9 +433,15 @@ void primitive_translate(Primitive* p, double dx, double dy) {
       }
       break;
   }
+
+  // A translacao altera a posicao da caixa envolvente.
   p->is_aabb_dirty = true;
 } //FUNCTION COMPLETED
 
+/**
+ * Escala a geometria mantendo o respetivo centro fixo.
+ * Para poligonos, o centro usado e o centro da sua AABB atualizada.
+ */
 void primitive_scale(Primitive* p, double factor) {
   if (p == NULL || factor <= 0.0) {
     return;
@@ -402,6 +455,7 @@ void primitive_scale(Primitive* p, double factor) {
       p->geom.rectangle.height *= factor;
       break;
     case PRIM_SEGMENT: {
+      // Mantem o ponto medio fixo enquanto afasta ou aproxima os extremos.
       double mid_x = (p->geom.segment.p1.x + p->geom.segment.p2.x) / 2.0;
       double mid_y = (p->geom.segment.p1.y + p->geom.segment.p2.y) / 2.0;
       p->geom.segment.p1.x = mid_x + (p->geom.segment.p1.x - mid_x) * factor;
@@ -413,6 +467,7 @@ void primitive_scale(Primitive* p, double factor) {
     case PRIM_POLYGON: {
       if (p->geom.polygon.num_vertices > 0) {
         if (p->is_aabb_dirty) {
+          // O centro usado na escala deve refletir a geometria atual.
           primitive_update_aabb(p);
         }
         double center_x = (p->aabb.min.x + p->aabb.max.x) / 2.0;
@@ -428,9 +483,15 @@ void primitive_scale(Primitive* p, double factor) {
       break;
     }
   }
+
+  // A escala pode alterar os limites, portanto invalida a AABB atual.
   p->is_aabb_dirty = true;
 } //FUNCTION COMPLETED
 
+/**
+ * Verifica se um ponto pertence a uma primitiva.
+ * Cada tipo delega o teste geometrico no auxiliar especializado correspondente.
+ */
 bool primitive_contains_point(const Primitive* p, Point pt) {
   if (p == NULL) {
     return false;
