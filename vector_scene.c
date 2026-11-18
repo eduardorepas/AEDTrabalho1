@@ -127,66 +127,38 @@ Primitive* vector_scene_get_primitive_by_id(const VectorScene* scene, int id) {
 // SCENE LIFECYCLE (STUDENTS MUST COMPLETE)
 // ============================================================================
 
-/**
- * Cria uma cena vazia com dimensoes e cor de fundo validas.
- * A capacidade inicial reserva espaco para varias primitivas sem realocacao.
- */
 VectorScene* vector_scene_create(int width, int height, Color bg_color) {
-  // Uma cena sem largura ou altura nao pode conter uma imagem valida.
   if (width <= 0 || height <= 0) {
     return NULL;
   }
-
-  // Aloca e inicializa todos os campos que controlam a colecao.
-  VectorScene* vs = (VectorScene*)malloc(sizeof(VectorScene));
-  if (vs == NULL){
-    // Sem memoria para a estrutura, a criacao nao pode prosseguir.
-    return NULL;
+  VectorScene* vs = (VectorScene*)malloc(sizeof(VectorScene)); // Alocar a memória
+  if (vs == NULL){ 
+    return NULL; // Devolver se for nulo
   }
-
-  // Define a capacidade inicial e as propriedades imutaveis da tela.
   vs->capacity = INITIAL_SCENE_CAPACITY;
   vs->width=width;
   vs->height=height;
   vs->bg_color=bg_color;
-
-  // A cena comeca vazia e o primeiro ID automatico e zero.
-  vs->next_auto_id=0;
-  vs->count=0;
-
-  // A cena assume inicialmente uma capacidade fixa para o vetor de ponteiros.
-  Primitive** p = (Primitive**)malloc((vs->capacity)*(sizeof(Primitive*)));
+  vs->next_auto_id=0; // No início, define-se que o próximo id será 0
+  vs->count=0; // Count é 0, porque não há elementos
+  Primitive** p = (Primitive**)malloc((vs->capacity)*(sizeof(Primitive*))); // Alocar a memória
   if (p == NULL){
-    // Liberta a estrutura para evitar uma fuga quando a segunda alocacao falha.
-    free(vs);
+    free(vs); // Libertar o vs para não haver fugas de memória
     return NULL;
   }
-
-  // Guarda o vetor de primitivas dentro da cena.
   vs->primitives=p;
   return vs;
 }
 
-/**
- * Destroi a cena, destruindo primeiro cada primitiva que ela possui.
- * A cena e proprietaria das primitivas adicionadas com sucesso.
- */
 void vector_scene_destroy(VectorScene* scene) {
-  // Permite que o chamador destrua uma cena opcional sem testar NULL.
   if (!scene) {
     return;
   }
-
-  // Liberta cada objeto antes do vetor e da estrutura da cena.
   for (size_t i=0; i<scene->count; i++){
-    // Cada primitiva foi transferida para a posse da cena ao ser adicionada.
-    primitive_destroy(scene->primitives[i]);
+    primitive_destroy(scene->primitives[i]); // Destruir todos os primitivos 1 por 1
   }
-
-  // Liberta o vetor de ponteiros depois de libertar os seus elementos.
-  free(scene->primitives);
-  // Liberta a estrutura que contem as propriedades da cena.
-  free(scene);
+  free(scene->primitives); // Liberta-se o array de primitivos
+  free(scene); // Dão-nos diretamente a scene e não um ponteiro, portanto, neste caso não se faz *scene = NULL depois de libertar a memória
 
 }
 
@@ -194,133 +166,80 @@ void vector_scene_destroy(VectorScene* scene) {
 // COLLECTION MANAGEMENT (STUDENTS MUST COMPLETE)
 // ============================================================================
 
-/**
- * Adiciona uma primitiva e transfere a sua propriedade para a cena.
- * IDs negativos sao substituidos por IDs automaticos unicos na cena.
- */
 int vector_scene_add_primitive(VectorScene* scene, Primitive* p) {
-  // Nem uma cena nem uma primitiva nulas podem participar na insercao.
   if (!scene || !p) {
     return -1;
   }
-
-  // Quando o vetor esta cheio, duplica a capacidade sem perder os ponteiros.
   if (scene->count == scene->capacity){
-    // A nova capacidade permite continuar a inserir sem realocar a cada elemento.
-    size_t new_capacity = scene->capacity*2;
-    Primitive** primitives = (Primitive**)realloc(scene->primitives, new_capacity*sizeof(Primitive*));
+    size_t new_capacity = scene->capacity*2; // Se a scene estiver cheia, duplica-se a capacidade
+    Primitive** primitives = (Primitive**)realloc(scene->primitives, new_capacity*sizeof(Primitive*)); // Realocação de memória
     if (primitives == NULL){
-      // realloc falhou; o vetor original continua sob posse da cena.
       return -1;
     }
-
-      // Atualiza o ponteiro somente depois de confirmar a realocacao.
       scene->primitives = primitives;
-      // Regista a nova quantidade de ponteiros suportada.
       scene->capacity=new_capacity;
   }
-
-  // Mantem o gerador de IDs acima de qualquer ID explicito ja utilizado.
   if (p->id < 0){
-    // IDs negativos significam que o chamador pediu atribuicao automatica.
-    p->id = scene->next_auto_id++;
+    p->id = scene->next_auto_id++; // Se o id for negativo, o sistema atribui ao elemento um id
   }
   else if (p->id >= scene->next_auto_id){
-    // Evita que um ID automatico futuro colida com este ID explicito.
-    scene->next_auto_id = (p->id) + 1;
+    scene->next_auto_id = (p->id) + 1; // Se o id foi maior do que o next_auto_id, corrige-se o valor do next_auto_id
   }
-
-  // Guarda a primitiva, atualiza os limites e passa a cena a ser responsavel por ela.
-  scene->primitives[scene->count] = p;
-  // Aumenta a quantidade depois de escrever na posicao livre.
-  scene->count++;
-  // Garante que a AABB esta correta assim que a primitiva entra na cena.
-  primitive_update_aabb(p);
-  // Devolve o ID efetivamente atribuido a primitiva.
+  scene->primitives[scene->count] = p; // O índice do primitivo será scene->count, por exemplo, se adicionarmos o segundo primitivo, primitives[1] corresponde a p
+  scene->count++; // Mais um primitivo
+  primitive_update_aabb(p); // Chamar a função
   return p->id;
 }
 
-/**
- * Remove uma primitiva pelo ID, destruindo-a e compactando o vetor.
- * Retorna false quando a cena ou o ID nao sao validos ou nao sao encontrados.
- */
 bool vector_scene_remove_primitive(VectorScene* scene, int id) {
-  // IDs negativos nao identificam primitivas validas.
   if (!scene || id < 0) {
     return false;
   }
-
-  // Depois de encontrar a primitiva, cada elemento seguinte ocupa a posicao anterior.
   bool destruido = false;
   for (size_t i = 0; i < scene->count; i++){
     if (destruido){
-      // Compacta a parte do vetor que esta depois do elemento removido.
-      scene->primitives[i-1]=scene->primitives[i];
+      scene->primitives[i-1]=scene->primitives[i]; // Se o primitivo já foi destruido, todos os restantes primitivos recuam uma posição para preservar a ordem relativa
     }
-    else if (scene->primitives[i]->id == id){
-      // A cena liberta a primitiva porque e a sua proprietaria.
-      primitive_destroy(scene->primitives[i]);
-      // Ativa a compactacao dos elementos seguintes.
-      destruido = true;
+    else if (scene->primitives[i]->id == id){ // Destroi-se o primitivo se o id dado corresponder ao id do primitivo desta iteração
+      primitive_destroy(scene->primitives[i]); // Destruir o primitivo
+      destruido = true; // Definir que o primitivo já foi destruido
     }
   }
   if (destruido){
-    // O vetor passou a conter menos uma primitiva.
     scene->count--;
-    return true;
+    return true; // Se o elemento for destruido, reduz-se o count 1 unidade e dá-se return true
   }
-  // Nenhuma primitiva tinha o ID procurado.
-  return false;
+  return false; // Se o elemento não foi destruido, return false
 }
 
 // ============================================================================
 // MANIPULATION AND TRANSFORMATIONS (STUDENTS MUST COMPLETE)
 // ============================================================================
 
-/**
- * Procura uma primitiva pelo ID e aplica-lhe uma translacao.
- * A propria primitiva fica responsavel por invalidar a sua AABB.
- */
 bool vector_scene_translate_primitive(VectorScene* scene, int id, double dx,
                                       double dy) {
-  // Sem cena, nao existe colecao onde procurar o ID.
   if (!scene) {
     return false;
   }
-
-  // A operacao termina assim que encontra o ID correspondente.
   for (size_t i = 0; i < scene->count; i++){
     if (scene->primitives[i]->id == id){
-      // A funcao da primitiva move a geometria e invalida a AABB.
-      primitive_translate(scene->primitives[i], dx, dy);
-      // Um ID encontrado significa que a operacao foi aplicada.
-      return true;
+      primitive_translate(scene->primitives[i], dx, dy); // Mudar a posição do primitivo
+      return true; 
     }
   }
-  // O ID nao foi encontrado na cena.
-  return false;
+  return false; // return false se o elemento não foi encontrado
 }
 
-/**
- * Atualiza o z-index da primitiva identificada.
- * O novo valor sera considerado nas ordenacoes e no desenho da cena.
- */
 bool vector_scene_set_z_index(VectorScene* scene, int id, int new_z_index) {
-  // Uma cena nula nao pode ser alterada.
   if (!scene) {
     return false;
   }
-
-  // Percorre a colecao ate encontrar a primitiva pretendida.
   for (size_t i = 0; i < scene->count; i++){
     if (scene->primitives[i]->id == id){
-      // O z-index determina a ordem de desenho e a camada superior.
-      scene->primitives[i]->z_index=new_z_index;
-      // Confirma que a alteracao foi aplicada.
+      scene->primitives[i]->z_index=new_z_index; // Redefinir o z do primitivo
       return true;
     }
   }
-  // Nao foi encontrada uma primitiva com esse ID.
   return false;
 }
 
@@ -341,35 +260,22 @@ bool vector_scene_set_z_index(VectorScene* scene, int id, int new_z_index) {
  */
 static void insertion_sort_by_z(Primitive** arr, size_t count,
                                 SortStats* stats) {
-  // Cada iteracao insere a chave na parte esquerda ja ordenada.
   if (count < 2){
-    // Vetores vazios ou unitarios ja estao ordenados.
-    return;
+    return; // Se o array tiver 0 ou 1 primitivo(s), não é preciso de usar o algoritmo, portanto, dá-se return
   }
-
-  // Comeca no segundo elemento porque o primeiro forma uma sequencia ordenada.
   for (size_t i = 1; i < count; i++){
-    // Guarda a primitiva que sera inserida na posicao correta.
-    Primitive* key = arr[i];
-    // j indica a posicao atualmente analisada na parte ordenada.
+    Primitive* key = arr[i]; 
     size_t j = i;
-    while (j > 0){
-      // A comparacao e contabilizada antes de decidir se ha deslocamento.
+    while (j > 0){ // Só há comparação se existir elemento à esquerda (j > 0), por isso o contador é incrementado aqui e não depois do ciclo
       stats->comparisons++;
-      if (arr[j-1]->z_index <= key->z_index){
-        // A chave ja esta depois de um elemento menor ou igual.
+      if (arr[j-1]->z_index <= key->z_index){ // O anterior já não é maior: a key fica aqui
         break;
       }
-
-      // Desloca elementos maiores uma posicao para a direita.
-      arr[j] = arr[j-1];
-      stats->swaps++;
-      // Continua a procurar uma posicao mais a esquerda.
-      j--;
+      arr[j] = arr[j - 1]; // Desloca o elemento maior uma posição para a direita
+      stats->swaps++; // Conta-se cada deslocamento
+      j--; // O buraco recua uma posição
     }
-
-    // Coloca a chave no primeiro lugar que respeita a ordenacao.
-    arr[j] = key;
+    arr[j] = key; // Coloca a key no buraco
   }
 }
 
@@ -389,39 +295,30 @@ static void insertion_sort_by_z(Primitive** arr, size_t count,
  */
 static void merge_by_z(Primitive** arr, Primitive** temp_arr, size_t left,
                        size_t mid, size_t right, SortStats* stats) {
-  // Intercala duas metades ja ordenadas no vetor auxiliar.
-  // i percorre a metade esquerda, j a direita e k escreve no auxiliar.
-  size_t i = left;
-  size_t j = mid + 1;
-  size_t k = left;
+  size_t i = left; // Frente da metade esquerda [left..mid]
+  size_t j = mid + 1; // Frente da metade direita [mid+1..right]
+  size_t k = left; // Posição de escrita no temp_arr
 
-  // Enquanto ambas as metades tiverem elementos, escolhe o menor z-index.
   while (i <= mid && j <= right) {
-    // Em empate, escolhe a metade esquerda para preservar estabilidade.
-    stats->comparisons++;
-    if (arr[j]->z_index < arr[i]->z_index){
+    stats->comparisons++; // Única fase em que se comparam dois z_index
+    if (arr[j]->z_index < arr[i]->z_index) { // O z da direita é estritamente menor: sai primeiro o da direita
       temp_arr[k++] = arr[j++];
-    } else {
+    } else { // Caso contrário (z da esquerda menor ou igual) sai o da esquerda
       temp_arr[k++] = arr[i++];
     }
-    stats->swaps++;
+    stats->swaps++; // Cópia para o temp_arr
   }
-
-  // Copia os elementos que sobraram de cada metade.
-  while (i <= mid) {
+  while (i <= mid) { // Sobras da metade esquerda (a direita esgotou-se): não há comparações
     temp_arr[k++] = arr[i++];
     stats->swaps++;
   }
-  while (j <= right) {
+  while (j <= right) { // Sobras da metade direita (a esquerda esgotou-se): não há comparações
     temp_arr[k++] = arr[j++];
     stats->swaps++;
   }
-
-  // Substitui o intervalo original pelo resultado intercalado.
-  for (size_t l = left; l <= right; l++){
-    // A copia de volta torna arr novamente uma sequencia ordenada.
-    arr[l] = temp_arr[l];
-    stats->swaps++;
+  for (size_t l = left; l <= right; l++) {
+    arr[l] = temp_arr[l]; // Copia o resultado de volta para o arr
+    stats->swaps++; // Troca feita
   }
 }
 
@@ -439,183 +336,119 @@ static void merge_by_z(Primitive** arr, Primitive** temp_arr, size_t left,
  */
 static void merge_sort_by_z(Primitive** arr, Primitive** temp_arr, size_t left,
                             size_t right, SortStats* stats) {
-  // Um intervalo unitario ja esta ordenado e termina a recursao.
   if (left >= right){
-    return;
+    return; // left não pode ser maior ou igual ao right, portanto, quando acontece, dá-se return
   }
-
-  // Divide o intervalo, ordena cada metade e intercala os resultados.
-  size_t mid = left + (right-left)/2;
-  // Ordena recursivamente a metade esquerda.
+  size_t mid = left + (right-left)/2; // Define-se o meio
   merge_sort_by_z(arr, temp_arr, left, mid, stats);
-  // Ordena recursivamente a metade direita.
-  merge_sort_by_z(arr, temp_arr, mid+1, right, stats);
-  // Junta as duas metades ja ordenadas.
-  merge_by_z(arr, temp_arr, left, mid, right, stats);
+  merge_sort_by_z(arr, temp_arr, mid+1, right, stats); // Divide-se em 2 casos
+  merge_by_z(arr, temp_arr, left, mid, right, stats); // Junta-se ambas as metades
 }
 
-/**
- * Ordena as primitivas por z-index usando Insertion Sort ou MergeSort.
- * As estatisticas recebidas registam comparacoes e movimentos realizados.
- */
 void vector_scene_sort_by_z(VectorScene* scene, bool use_fast_sort,
                             SortStats* stats) {
-  // Nao ha trabalho nem metricas uteis para cenas com menos de dois elementos.
   if (scene == NULL || scene->count < 2) return;
-
-  // Cada execucao inicia as metricas a zero.
-  stats->comparisons = 0; stats->swaps = 0;
+  stats->comparisons = 0; stats->swaps = 0; // Stats resetados
   if (use_fast_sort){
-    // MergeSort precisa de um vetor auxiliar para a fase de merge.
-    Primitive** temp_arr = (Primitive**)malloc(sizeof(scene->primitives)*sizeof(Primitive*));
+    Primitive** temp_arr = (Primitive**)malloc(scene->count*sizeof(Primitive*)); // Criar o array temp_arr
     if (temp_arr != NULL) {
-      // MergeSort reorganiza o vetor original usando o auxiliar.
-      merge_sort_by_z(scene->primitives, temp_arr, 0, scene->count - 1, stats);
-      // O auxiliar deixa de ser necessario depois da ordenacao.
-      free(temp_arr);
+      merge_sort_by_z(scene->primitives, temp_arr, 0, scene->count - 1, stats); // Se quiser usar o método rápido de sorting (e a criação do "temp_arr" não falhar) usa-se o merge sorting
+      free(temp_arr); // Liberta-se a memória
     } else {
-      // Se a alocacao falhar, usa o algoritmo que nao requer memoria extra.
-      insertion_sort_by_z(scene->primitives, scene->count, stats);
+      insertion_sort_by_z(scene->primitives, scene->count, stats); // Troca-se o insertion sort se falhar a criação do "temp_arr"
     }
   } else {
-    // Insertion Sort ordena diretamente o vetor da cena.
-    insertion_sort_by_z(scene->primitives, sizeof(scene->primitives), stats);
+    insertion_sort_by_z(scene->primitives, scene->count, stats); // Se não quiser usar o método rápido de sorting, usa-se diretamente o insertion sort
   }
 }
 
-/**
- * Devolve a primitiva superior que contem um ponto.
- * A opcao otimizada elimina primeiro primitivas fora da AABB (broad phase).
- */
 Primitive* vector_scene_pick_top_primitive(const VectorScene* scene, Point pt,
                                            bool is_opt, PickStats* stats) {
-  // Sem cena nao ha primitivas que possam ser selecionadas.
   if (!scene) {
     return NULL;
   }
-
-  // As metricas distinguem testes baratos de AABB e testes geometricos exatos.
-  stats->aabb_tests = 0; stats->exact_tests = 0;
-
-  // Guarda a melhor correspondencia encontrada ate ao momento.
+  stats->aabb_tests = 0;  
+  stats->exact_tests = 0; // Repor os contadores antes de começar
   Primitive* maior = NULL;
-  // Analisa todas as primitivas porque a maior camada pode estar em qualquer indice.
-  for (size_t i = 0; i< scene->count; i++){
-    // Recupera a primitiva atual sem a remover da cena.
+  for (size_t i = 0; i < scene->count; i++) { // Percorre todas as primitivas e guarda a mais à frente que contém o ponto
     Primitive* p = scene->primitives[i];
-    // hit so fica verdadeiro quando o teste geometrico confirma a inclusao.
-    bool hit = false;
+    bool hit = false;  // Esta primitiva contém o ponto?
 
-    if (is_opt){
-      // Broad phase: so executa o teste exato dentro da caixa envolvente.
+    if (is_opt) { // Estratégia otimizada: fase 1 (broad-phase), teste barato da AABB
       stats->aabb_tests++;
       BoundingBox box = primitive_get_aabb(p);
-        if (pt.x >= box.min.x && pt.x <= box.max.x && pt.y >= box.min.y && pt.y <= box.max.y){
-          // Apenas pontos dentro da AABB chegam ao teste exato mais dispendioso.
-          stats->exact_tests++;
-          hit = primitive_contains_point(p, pt);
-        }
-    } else {
-      // Sem otimizacao, testa diretamente a geometria de cada primitiva.
+      if (pt.x >= box.min.x && pt.x <= box.max.x && pt.y >= box.min.y && pt.y <= box.max.y) { // Fase 2 (narrow-phase): o teste exato só corre se a AABB contiver o ponto        
+        stats->exact_tests++;
+        hit = primitive_contains_point(p, pt);
+      }
+    } else { // Estratégia direta: teste exato em todas as primitivas, sem AABB
       stats->exact_tests++;
       hit = primitive_contains_point(p, pt);
     }
-    if (hit) {
-      // Guarda o maior z-index entre todas as primitivas que contem o ponto.
-      if (maior == NULL || p->z_index >= maior->z_index){
-        // Em empate, a primitiva encontrada mais tarde substitui a anterior.
+    if (hit) { // Fica a de maior z_index. Em caso de empate fica a de índice maior, que é a desenhada por cima
+      if (maior == NULL || p->z_index >= maior->z_index) {
         maior = p;
       }
     }
   }
-  // Retorna NULL se nenhuma geometria contiver o ponto.
-  return maior;
+  return maior; // NULL se nenhuma primitiva contém o ponto
 }
 
 // ============================================================================
 // RENDERING / RASTERIZATION (STUDENTS MUST COMPLETE)
 // ============================================================================
 
-/**
- * Renderiza a cena para uma imagem PPM usando o algoritmo do pintor.
- * As primitivas sao desenhadas por ordem crescente de z-index e alpha-blended.
- */
 bool vector_scene_render(const VectorScene* scene,
                          const char* output_filename) {
-    // Ambos os argumentos sao necessarios para produzir uma imagem.
-    if (!scene || !output_filename) {
-      return false;
-    }
+  if (!scene || !output_filename) {
+    return false;
+  }
   int w = scene->width;
   int h = scene->height;
 
-  // Cada pixel ocupa tres bytes RGB e comeca com a cor de fundo.
-  uint8_t* buffer = malloc((size_t)w * h * 3);
+  uint8_t* buffer = malloc((size_t)w * h * 3); // Buffer de pixeis
   if (buffer == NULL) {
-    // Sem buffer nao e possivel rasterizar a cena.
     return false;
   }
-
-  // Inicializa sequencialmente os tres canais de cada pixel.
-  for (size_t i = 0; i < (size_t)w * h; i++) {
+  for (size_t i = 0; i < (size_t)w * h; i++) { // Preencher tudo com a cor de fundo
     buffer[i * 3] = scene->bg_color.r;
     buffer[i * 3 + 1] = scene->bg_color.g;
     buffer[i * 3 + 2] = scene->bg_color.b;
   }
 
   Primitive** sorted = NULL;
-  if (scene->count > 0) {
-    // Trabalha numa copia para nao alterar a ordem armazenada na cena.
+  if (scene->count > 0) { // Algoritmo do Pintor
     sorted = malloc(scene->count * sizeof(Primitive*));
     if (sorted == NULL) {
-      // O buffer tambem deve ser libertado neste caminho de erro.
-      free(buffer);
+      free(buffer); // Libertar o buffer antes de dar return
       return false;
     }
-
-    // Copia apenas ponteiros; as primitivas continuam a pertencer a cena.
     memcpy(sorted, scene->primitives, scene->count * sizeof(Primitive*));
     SortStats unused = {0, 0};
-    // Ordena por z crescente para desenhar primeiro as camadas inferiores.
     insertion_sort_by_z(sorted, scene->count, &unused);
   }
 
-  // Desenha de tras para a frente, aplicando recorte pela AABB.
-  for (size_t i = 0; i < scene->count; i++) {
-    // A AABB limita os pixels que precisam de um teste geometrico exato.
+  for (size_t i = 0; i < scene->count; i++) { // Desenhar do fundo para a frente (menor z primeiro)
     Primitive* p = sorted[i];
-    BoundingBox box = primitive_get_aabb(p);
-    if (box.max.x < 0 || box.min.x > w - 1 || box.max.y < 0 ||
-        box.min.y > h - 1) {
-      // Primitivas completamente fora da tela nao alteram a imagem.
+    BoundingBox box = primitive_get_aabb(p); // AABB atualizada se necessário
+    if (box.max.x < 0 || box.min.x > w - 1 || box.max.y < 0 || box.min.y > h - 1) { // Se a AABB está completamente fora da imagem, não há nada para desenhar
       continue;
     }
-
-    // Converte os limites reais em limites inteiros que cobrem os pixels tocados.
     double x0 = floor(box.min.x), x1 = ceil(box.max.x);
-    double y0 = floor(box.min.y), y1 = ceil(box.max.y);
-    // Recorta o intervalo horizontal para os limites validos do buffer.
+    double y0 = floor(box.min.y), y1 = ceil(box.max.y); // Converter a AABB em índices de píxeis e cortá-la aos limites da imagem (clipping), para nunca escrever fora do buffer
     if (x0 < 0) x0 = 0;
-    if (x1 > w - 1) x1 = w - 1;
-    // Recorta o intervalo vertical para os limites validos do buffer.
     if (y0 < 0) y0 = 0;
+    if (x1 > w - 1) x1 = w - 1;
     if (y1 > h - 1) y1 = h - 1;
-
-    // Converte os limites recortados para indices usados nos ciclos.
     int x_min = (int)x0, x_max = (int)x1;
     int y_min = (int)y0, y_max = (int)y1;
     Color c = primitive_get_color(p);
     double a = primitive_get_alpha(p);
-
-    // O centro do pixel e usado no teste geometrico para evitar ambiguidades.
-    for (int y = y_min; y <= y_max; y++) {
+    for (int y = y_min; y <= y_max; y++) { // Só se testam os píxeis dentro da AABB (já cortada)
       for (int x = x_min; x <= x_max; x++) {
-        // O ponto (x+0.5, y+0.5) representa o centro do pixel (x,y).
-        Point center = {x + 0.5, y + 0.5};
+        Point center = {x + 0.5, y + 0.5}; // Testa-se o centro do píxel
         if (primitive_contains_point(p, center)) {
-          // Calcula o inicio dos tres bytes RGB correspondentes ao pixel.
           size_t idx = ((size_t)y * w + x) * 3;
-          // Composicao alpha: combina a cor da primitiva com a ja desenhada.
           buffer[idx] = (uint8_t)(a * c.r + (1.0 - a) * buffer[idx] + 0.5);
           buffer[idx + 1] = (uint8_t)(a * c.g + (1.0 - a) * buffer[idx + 1] + 0.5);
           buffer[idx + 2] = (uint8_t)(a * c.b + (1.0 - a) * buffer[idx + 2] + 0.5);
@@ -624,12 +457,9 @@ bool vector_scene_render(const VectorScene* scene,
     }
   }
 
-  // Guarda o resultado e conserva o estado da operacao para devolver sucesso.
   bool ok = save_ppm_image(output_filename, w, h, buffer);
-  // Os dois buffers temporarios ja nao sao necessarios apos guardar a imagem.
   free(sorted);
   free(buffer);
-  // Propaga o resultado da escrita do ficheiro.
   return ok;
 }
 
