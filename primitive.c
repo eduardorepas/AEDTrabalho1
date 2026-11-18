@@ -207,7 +207,7 @@ Primitive* primitive_create_rectangle(int id, Point top_left, double width,
     return NULL;
   }
   Primitive* p= primitive_allocate_common(id, PRIM_RECTANGLE, color, alpha, z_index);
-  if (p=NULL) {
+  if (p==NULL) {
     return NULL;
   }
   p->geom.rectangle.top_left=top_left;
